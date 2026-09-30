@@ -7077,6 +7077,10 @@ window.__ModuleLoader__.load({ id: "dshmarket", factory: (require) => {
 				if (overlay?.getTitlebarAreaRect === void 0) return;
 				const sync = () => {
 					try {
+						if (overlay.visible === false) {
+							setHeight(0);
+							return;
+						}
 						const next = overlay.getTitlebarAreaRect().height;
 						setHeight(Number.isFinite(next) && next > 0 ? next : 0);
 					} catch {
