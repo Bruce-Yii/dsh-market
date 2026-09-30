@@ -918,6 +918,7 @@ function CardDesc({ text, t, lines = 5, className, textClassName }: {
 }
 
 type WindowControlsOverlayApi = {
+  visible?: boolean
   getTitlebarAreaRect: () => { height: number }
   addEventListener?: (type: 'geometrychange', listener: EventListener) => void
   removeEventListener?: (type: 'geometrychange', listener: EventListener) => void
@@ -941,6 +942,10 @@ function useWindowTitlebarHeight(): number {
 
     const sync = () => {
       try {
+        if (overlay.visible === false) {
+          setHeight(0)
+          return
+        }
         const next = overlay.getTitlebarAreaRect().height
         setHeight(Number.isFinite(next) && next > 0 ? next : 0)
       } catch {
