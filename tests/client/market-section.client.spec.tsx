@@ -6010,8 +6010,11 @@ describe('card thumbnail + lightbox (curated screenshots only)', () => {
 
   function stubWindowControlsOverlay(initialHeight: number) {
     let height = initialHeight
+    let visible = true
     const listeners = new Set<EventListener>()
+    const emit = () => { for (const listener of [...listeners]) listener(new Event('geometrychange')) }
     const overlay = {
+      get visible() { return visible },
       getTitlebarAreaRect: vi.fn(() => ({ height })),
       addEventListener: vi.fn((type: string, listener: EventListener) => {
         if (type === 'geometrychange') listeners.add(listener)
@@ -6027,7 +6030,11 @@ describe('card thumbnail + lightbox (curated screenshots only)', () => {
       overlay,
       setHeight(next: number) {
         height = next
-        for (const listener of [...listeners]) listener(new Event('geometrychange'))
+        emit()
+      },
+      setVisible(next: boolean) {
+        visible = next
+        emit()
       },
     }
   }
@@ -6162,9 +6169,13 @@ describe('card thumbnail + lightbox (curated screenshots only)', () => {
     act(() => controls.setHeight(36))
     await waitFor(() => expect(close.style.top).toBe('52px'))
 
-    // A shell can turn the overlay off or report no reserved band. Return to
-    // the stylesheet default rather than leaving a stale desktop offset.
-    act(() => controls.setHeight(0))
+    // A shell can turn the overlay off. Its previous geometry must not leave
+    // a stale desktop offset behind when the native overlay is no longer visible.
+    act(() => controls.setVisible(false))
+    await waitFor(() => expect(close.style.top).toBe(''))
+
+    // Visible again but with no reserved band is the same browser fallback.
+    act(() => { controls.setVisible(true); controls.setHeight(0) })
     await waitFor(() => expect(close.style.top).toBe(''))
 
     fireEvent.click(close)
