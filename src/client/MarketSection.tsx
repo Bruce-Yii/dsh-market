@@ -917,6 +917,43 @@ function CardDesc({ text, t, lines = 5, className, textClassName }: {
   )
 }
 
+type WindowControlsOverlayApi = {
+  getTitlebarAreaRect: () => { height: number }
+  addEventListener?: (type: 'geometrychange', listener: EventListener) => void
+  removeEventListener?: (type: 'geometrychange', listener: EventListener) => void
+}
+
+/**
+ * Native window controls can own the top band even though DOM hit-testing
+ * still reports the page element underneath. The official Windows desktop
+ * shell has been observed with a 42px band while the lightbox close button
+ * starts at 16px (#384), leaving only its bottom edge clickable.
+ *
+ * Read the shell's geometry instead of hard-coding a desktop height: titlebar
+ * overlays differ between shells, and ordinary browsers have no such API.
+ */
+function useWindowTitlebarHeight(): number {
+  const [height, setHeight] = useState(0)
+  useLayoutEffect(() => {
+    if (typeof navigator === 'undefined') return
+    const overlay = (navigator as Navigator & { windowControlsOverlay?: WindowControlsOverlayApi }).windowControlsOverlay
+    if (overlay?.getTitlebarAreaRect === undefined) return
+
+    const sync = () => {
+      try {
+        const next = overlay.getTitlebarAreaRect().height
+        setHeight(Number.isFinite(next) && next > 0 ? next : 0)
+      } catch {
+        setHeight(0)
+      }
+    }
+    sync()
+    overlay.addEventListener?.('geometrychange', sync)
+    return () => overlay.removeEventListener?.('geometrychange', sync)
+  }, [])
+  return height
+}
+
 /**
  * Full-bleed image preview, opened from a card thumbnail or a dialog's
  * screenshot strip. Not the shared Modal primitive: Modal is chrome for a
@@ -930,6 +967,7 @@ function ScreenshotLightbox({ shots, startIndex, onClose, t }: { shots: string[]
   // disabled with intervalMs = 0. Arrows, dots, and the keyboard still
   // navigate manually.
   const [index, setIndex] = useAutoCarousel(shots.length, startIndex, 0)
+  const titlebarHeight = useWindowTitlebarHeight()
   const host = useMarketPortalHost()
   useEffect(() => {
     // Capture phase + stopPropagation: the Settings dialog underneath is a
@@ -975,7 +1013,12 @@ function ScreenshotLightbox({ shots, startIndex, onClose, t }: { shots: string[]
           version's public type surface doesn't resolve it — `tsc` reports
           "no exported member" even though icons/index.d.ts declares it.
           Not worth a type-check suppression for one close glyph. */}
-      <button className={css.lightboxClose} aria-label={t('lightboxClose')} onClick={onClose}>×</button>
+      <button
+        className={css.lightboxClose}
+        style={titlebarHeight > 0 ? { top: titlebarHeight + 16 } : undefined}
+        aria-label={t('lightboxClose')}
+        onClick={onClose}
+      >×</button>
       <img className={css.lightboxImg} src={shots[index]} alt="" onClick={e => e.stopPropagation()} />
       {shots.length > 1 && (
         <>
